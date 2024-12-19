@@ -21,13 +21,13 @@ A trading bot for Binance that uses the Relative Strength Index (RSI) to make tr
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/throuz/binance-rsi-bot.git
+   git clone https://github.com/throuz/binance-funding-rate-bot.git
    ```
 
 2. Navigate to the project directory:
 
    ```bash
-   cd binance-rsi-bot
+   cd binance-funding-rate-bot
    ```
 
 3. Install the required dependencies:
