@@ -7,7 +7,7 @@ export const FUNDING_RATE_LONG_LEVEL = 69;
 export const FUNDING_RATE_SHORT_LEVEL = 46;
 export const LEVERAGE = 1;
 
-// Only for backtest
+// Backtest parameters
 export const INITIAL_FUNDING = 100;
 export const FEE = 0.0005; // 0.05%
 export const FUNDING_RATE = 0.0001; // 0.01%
