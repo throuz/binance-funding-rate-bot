@@ -1,13 +1,13 @@
-# Binance RSI Bot
+# Binance Funding Rate Bot
 
-A trading bot for Binance that uses the Relative Strength Index (RSI) to make trading decisions. This bot not only trades based on RSI but also automatically backtests a range of predefined parameters to find the optimal settings for trading.
+A trading bot for Binance that uses funding rate data to make trading decisions. This bot analyzes funding rates to determine optimal times to go long and automatically backtests a range of predefined parameters to find the best trading strategies.
 
 ## Features
 
-- Monitors RSI values for a specified trading pair.
-- Executes buy and sell orders based on RSI thresholds.
-- Automatically backtests a range of predefined parameters to determine the best settings.
-- Configurable trading settings.
+- Monitors funding rates for specified trading pairs.
+- Executes long trades based on funding rate thresholds.
+- Automatically backtests a range of parameters to determine optimal trading settings.
+- Configurable trading strategies and risk management.
 - Real-time logging of trading activities.
 
 ## Prerequisites
@@ -80,7 +80,7 @@ A trading bot for Binance that uses the Relative Strength Index (RSI) to make tr
 
 ## Backtesting
 
-The bot will automatically backtest different parameter combinations within the specified ranges. It evaluates each combination based on historical data to identify the best settings for the trading strategy.
+The bot performs automated backtesting of parameter combinations to optimize trading performance. It evaluates the historical profitability of each strategy based on the funding rate and market conditions.
 
 ## Contributing
 
@@ -96,4 +96,4 @@ This project is licensed under the MIT License. See the [LICENSE](https://openso
 
 ## Disclaimer
 
-This bot is for educational purposes only. Use it at your own risk. Make sure to test thoroughly before using it with real funds. The author is not responsible for any financial losses incurred from using this bot.
+This bot is for educational purposes only. Use it at your own risk. Make sure to thoroughly test and validate strategies before using real funds. The author is not responsible for any financial losses incurred from using this bot.
