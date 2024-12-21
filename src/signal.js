@@ -1,18 +1,18 @@
 export const getSignal = ({
   positionType,
-  preRsi,
-  rsiLongLevel,
-  rsiShortLevel
+  curFundingRate,
+  fundingRateLongLevel,
+  fundingRateShortLevel
 }) => {
   // OPEN_LONG
   if (positionType === "NONE") {
-    if (preRsi > rsiLongLevel) {
+    if (curFundingRate < fundingRateLongLevel) {
       return "OPEN_LONG";
     }
   }
   // CLOSE_LONG
   if (positionType === "LONG") {
-    if (preRsi < rsiShortLevel) {
+    if (curFundingRate > fundingRateShortLevel) {
       return "CLOSE_LONG";
     }
   }

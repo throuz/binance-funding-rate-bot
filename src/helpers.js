@@ -1,17 +1,9 @@
-import {
-  KLINE_INTERVAL,
-  KLINE_LIMIT,
-  QUOTE_ASSET,
-  SYMBOL,
-  KLINE_START_TIME,
-  IS_KLINE_START_TIME_TO_NOW
-} from "../configs/trade-config.js";
+import { QUOTE_ASSET, SYMBOL } from "../configs/trade-config.js";
 import {
   exchangeInformationAPI,
   futuresAccountBalanceAPI,
-  klineDataAPI,
-  symbolPriceTickerAPI,
-  positionInformationAPI
+  positionInformationAPI,
+  symbolPriceTickerAPI
 } from "./api.js";
 import { nodeCache } from "./cache.js";
 
@@ -80,41 +72,6 @@ export const getOrderQuantity = async (orderAmountPercent) => {
   const availableQuantity = await getAvailableQuantity();
   const orderQuantity = availableQuantity * (orderAmountPercent / 100);
   return orderQuantity;
-};
-
-export const getOriginalKlineData = async () => {
-  const now = Date.now();
-  let originalKlineData = [];
-  let startTime = KLINE_START_TIME;
-  do {
-    const params = {
-      symbol: SYMBOL,
-      interval: KLINE_INTERVAL,
-      limit: KLINE_LIMIT,
-      startTime
-    };
-    const klineData = await klineDataAPI(params);
-    originalKlineData = originalKlineData.concat(klineData);
-    if (klineData.length > 0) {
-      startTime = klineData[klineData.length - 1][6] + 1;
-    }
-    if (!IS_KLINE_START_TIME_TO_NOW) break;
-  } while (startTime && startTime < now);
-  return originalKlineData;
-};
-
-export const getKlineData = async () => {
-  const klineData = await getOriginalKlineData();
-  const results = klineData.map((kline) => ({
-    openPrice: Number(kline[1]),
-    highPrice: Number(kline[2]),
-    lowPrice: Number(kline[3]),
-    closePrice: Number(kline[4]),
-    volume: Number(kline[5]),
-    openTime: kline[0],
-    closeTime: kline[6]
-  }));
-  return results;
 };
 
 const getPrecisionBySize = (size) => {

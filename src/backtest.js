@@ -1,16 +1,13 @@
 import { Presets, SingleBar } from "cli-progress";
 import {
-  RSI_PERIOD_SETTING,
-  RSI_SHORT_LEVEL_SETTING,
   FEE,
   FUNDING_RATE,
   INITIAL_FUNDING,
-  RSI_LONG_LEVEL_SETTING,
   LEVERAGE_SETTING,
   ORDER_AMOUNT_PERCENT,
   RANDOM_SAMPLE_NUMBER
 } from "../configs/trade-config.js";
-import { getCachedKlineData, getCachedRsiData } from "./cached-data.js";
+import { getCachedFundingRateHistory } from "./cached-data.js";
 import { getSignal } from "./signal.js";
 import { getStepSize, formatBySize } from "./helpers.js";
 
@@ -79,12 +76,10 @@ const getFundingFee = ({
 
 export const getBacktestResult = ({
   shouldLogResults,
-  cachedKlineData,
-  cachedRsiData,
+  cachedFundingRateHistory,
   stepSize,
-  rsiPeriod,
-  rsiLongLevel,
-  rsiShortLevel,
+  fundingRateLongLevel,
+  fundingRateShortLevel,
   leverage
 }) => {
   let fund = INITIAL_FUNDING;
@@ -94,18 +89,17 @@ export const getBacktestResult = ({
   let openTimestamp = null;
   let openPrice = null;
   let liquidationPrice = null;
-  const rsiData = cachedRsiData.get(rsiPeriod);
-  for (let i = RSI_PERIOD_SETTING.max + 1; i < cachedKlineData.length; i++) {
-    const curKline = cachedKlineData[i];
-    const preRsi = rsiData[i - 1];
+  for (let i = 0; i < cachedFundingRateHistory.length; i++) {
+    const curFundingRateItem = cachedFundingRateHistory[i];
+    const curFundingRate = curFundingRateItem.fundingRate;
     const signal = getSignal({
       positionType,
-      preRsi,
-      rsiLongLevel,
-      rsiShortLevel
+      curFundingRate,
+      fundingRateLongLevel,
+      fundingRateShortLevel
     });
     if (signal === "OPEN_LONG") {
-      openPrice = curKline.openPrice;
+      openPrice = curFundingRateItem.markPrice;
       const orderQuantity =
         (fund * (ORDER_AMOUNT_PERCENT / 100) * leverage) / openPrice;
       positionAmt = formatBySize(orderQuantity, stepSize);
@@ -113,12 +107,12 @@ export const getBacktestResult = ({
       positionFund = (positionAmt * openPrice) / leverage;
       fund = fund - positionFund - fee;
       positionType = "LONG";
-      openTimestamp = curKline.openTime;
+      openTimestamp = curFundingRateItem.fundingTime;
       liquidationPrice = openPrice * (1 - 1 / leverage);
     }
     if (signal === "CLOSE_LONG") {
-      const closePrice = curKline.openPrice;
-      const closeTimestamp = curKline.openTime;
+      const closePrice = curFundingRateItem.markPrice;
+      const closeTimestamp = curFundingRateItem.fundingTime;
       const fee = positionAmt * closePrice * FEE;
       const fundingFee = getFundingFee({
         positionAmt,
@@ -147,78 +141,86 @@ export const getBacktestResult = ({
       openPrice = null;
       liquidationPrice = null;
     }
-    // Liquidation
-    if (positionType === "LONG" && curKline.lowPrice < liquidationPrice) {
+    // Liquidation (More precise logic is needed because there is an 8 hour time difference)
+    if (
+      positionType === "LONG" &&
+      curFundingRateItem.markPrice < liquidationPrice
+    ) {
       return null;
     }
   }
   return {
     currentPositionType: positionType,
     fund,
-    rsiPeriod,
-    rsiLongLevel,
-    rsiShortLevel,
+    fundingRateLongLevel,
+    fundingRateShortLevel,
     leverage
   };
 };
 
-const getAddedNumber = ({ number, addNumber, digit }) => {
-  return Number((number + addNumber).toFixed(digit));
+const calculateRoundedSum = ({ base, increment, precision }) => {
+  return Number((base + increment).toFixed(precision));
 };
 
-const getSettings = () => {
+const getMaxMinFundingRates = (cachedFundingRateHistory) => {
+  let maxFundingRate = -Infinity;
+  let minFundingRate = Infinity;
+  for (const item of cachedFundingRateHistory) {
+    const { fundingRate } = item;
+    if (fundingRate > maxFundingRate) maxFundingRate = fundingRate;
+    if (fundingRate < minFundingRate) minFundingRate = fundingRate;
+  }
+  return { maxFundingRate, minFundingRate };
+};
+
+const getSettings = (cachedFundingRateHistory) => {
   const settings = [];
+  const { maxFundingRate, minFundingRate } = getMaxMinFundingRates(
+    cachedFundingRateHistory
+  );
+  console.log("minFundingRate", minFundingRate);
+  console.log("maxFundingRate", maxFundingRate);
+
   for (
     let leverage = LEVERAGE_SETTING.min;
     leverage <= LEVERAGE_SETTING.max;
-    leverage = getAddedNumber({
-      number: leverage,
-      addNumber: LEVERAGE_SETTING.step,
-      digit: 0
+    leverage = calculateRoundedSum({
+      base: leverage,
+      increment: LEVERAGE_SETTING.step,
+      precision: 0
     })
   ) {
     for (
-      let rsiPeriod = RSI_PERIOD_SETTING.min;
-      rsiPeriod <= RSI_PERIOD_SETTING.max;
-      rsiPeriod = getAddedNumber({
-        number: rsiPeriod,
-        addNumber: RSI_PERIOD_SETTING.step,
-        digit: 0
+      let fundingRateLongLevel = minFundingRate;
+      fundingRateLongLevel <= maxFundingRate;
+      fundingRateLongLevel = calculateRoundedSum({
+        base: fundingRateLongLevel,
+        increment: 0.0001,
+        precision: 4
       })
     ) {
       for (
-        let rsiLongLevel = RSI_LONG_LEVEL_SETTING.min;
-        rsiLongLevel <= RSI_LONG_LEVEL_SETTING.max;
-        rsiLongLevel = getAddedNumber({
-          number: rsiLongLevel,
-          addNumber: RSI_LONG_LEVEL_SETTING.step,
-          digit: 0
+        let fundingRateShortLevel = minFundingRate;
+        fundingRateShortLevel <= maxFundingRate;
+        fundingRateShortLevel = calculateRoundedSum({
+          base: fundingRateShortLevel,
+          increment: 0.0001,
+          precision: 4
         })
       ) {
-        for (
-          let rsiShortLevel = RSI_SHORT_LEVEL_SETTING.min;
-          rsiShortLevel <= RSI_SHORT_LEVEL_SETTING.max;
-          rsiShortLevel = getAddedNumber({
-            number: rsiShortLevel,
-            addNumber: RSI_SHORT_LEVEL_SETTING.step,
-            digit: 0
-          })
-        ) {
-          settings.push({
-            rsiPeriod,
-            rsiLongLevel,
-            rsiShortLevel,
-            leverage
-          });
-        }
+        settings.push({
+          leverage,
+          fundingRateLongLevel,
+          fundingRateShortLevel
+        });
       }
     }
   }
   return settings;
 };
 
-const getRandomSettings = () => {
-  const settings = getSettings();
+const getRandomSettings = (cachedFundingRateHistory) => {
+  const settings = getSettings(cachedFundingRateHistory);
   if (RANDOM_SAMPLE_NUMBER) {
     const samples = [];
     for (let i = 0; i < RANDOM_SAMPLE_NUMBER; i++) {
@@ -231,32 +233,29 @@ const getRandomSettings = () => {
 };
 
 export const getBestResult = async () => {
-  const settings = getSettings();
+  let bestResult = { fund: 0 };
+
+  const [cachedFundingRateHistory, stepSize] = await Promise.all([
+    getCachedFundingRateHistory(),
+    getStepSize()
+  ]);
+
+  const settings = getSettings(cachedFundingRateHistory);
   console.log("Total settings length", settings.length);
-  const randomSettings = getRandomSettings();
+  const randomSettings = getRandomSettings(cachedFundingRateHistory);
   console.log("Random samples length", randomSettings.length);
 
   const progressBar = new SingleBar({}, Presets.shades_classic);
   progressBar.start(randomSettings.length, 0);
 
-  let bestResult = { fund: 0 };
-
-  const [cachedKlineData, cachedRsiData, stepSize] = await Promise.all([
-    getCachedKlineData(),
-    getCachedRsiData(),
-    getStepSize()
-  ]);
-
   for (const setting of randomSettings) {
-    const { rsiPeriod, rsiLongLevel, rsiShortLevel, leverage } = setting;
+    const { fundingRateLongLevel, fundingRateShortLevel, leverage } = setting;
     const backtestResult = getBacktestResult({
       shouldLogResults: false,
-      cachedKlineData,
-      cachedRsiData,
+      cachedFundingRateHistory,
       stepSize,
-      rsiPeriod,
-      rsiLongLevel,
-      rsiShortLevel,
+      fundingRateLongLevel,
+      fundingRateShortLevel,
       leverage
     });
     if (backtestResult && backtestResult.fund > bestResult.fund) {

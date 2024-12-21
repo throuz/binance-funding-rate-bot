@@ -75,6 +75,14 @@ export const klineDataAPI = async (params) => {
   return responseData;
 };
 
+export const fundingRateHistoryAPI = async (params) => {
+  const responseData = await getBinanceFuturesAPI(
+    "/fapi/v1/fundingRate",
+    params
+  );
+  return responseData;
+};
+
 // POST
 
 export const changeInitialLeverageAPI = async (params) => {

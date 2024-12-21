@@ -1,17 +1,15 @@
 import schedule from "node-schedule";
+import {
+  LEVERAGE,
+  FUNDING_RATE_LONG_LEVEL,
+  FUNDING_RATE_SHORT_LEVEL
+} from "./configs/trade-config.js";
 import { nodeCache } from "./src/cache.js";
+import { getCachedFundingRateHistory } from "./src/cached-data.js";
 import { errorHandler, sendLineNotify } from "./src/common.js";
 import { getAvailableBalance, getPositionType } from "./src/helpers.js";
-import { closePosition, openPosition } from "./src/trade.js";
-import { getCachedKlineData } from "./src/cached-data.js";
-import { rsi } from "technicalindicators";
 import { getSignal } from "./src/signal.js";
-import {
-  RSI_PERIOD,
-  RSI_LONG_LEVEL,
-  RSI_SHORT_LEVEL,
-  LEVERAGE
-} from "./configs/trade-config.js";
+import { closePosition, openPosition } from "./src/trade.js";
 
 const logBalance = async () => {
   const availableBalance = await getAvailableBalance();
@@ -21,9 +19,8 @@ const logBalance = async () => {
 const setTradeConfigs = async () => {
   console.log(new Date().toLocaleString());
   nodeCache.mset([
-    { key: "rsiPeriod", val: RSI_PERIOD, ttl: 0 },
-    { key: "rsiLongLevel", val: RSI_LONG_LEVEL, ttl: 0 },
-    { key: "rsiShortLevel", val: RSI_SHORT_LEVEL, ttl: 0 },
+    { key: "fundingRateLongLevel", val: FUNDING_RATE_LONG_LEVEL, ttl: 0 },
+    { key: "fundingRateShortLevel", val: FUNDING_RATE_SHORT_LEVEL, ttl: 0 },
     { key: "leverage", val: LEVERAGE, ttl: 0 }
   ]);
   await logBalance();
@@ -34,18 +31,17 @@ await setTradeConfigs();
 
 const getTradeSignal = async () => {
   const positionType = await getPositionType();
-  const cachedKlineData = await getCachedKlineData();
-  const values = cachedKlineData.map((kline) => kline.closePrice);
-  const rsiPeriod = nodeCache.get("rsiPeriod");
-  const rsiLongLevel = nodeCache.get("rsiLongLevel");
-  const rsiShortLevel = nodeCache.get("rsiShortLevel");
-  const rsiData = rsi({ period: rsiPeriod, values });
-  const preRsi = rsiData[rsiData.length - 2];
+  const cachedFundingRateHistory = await getCachedFundingRateHistory();
+  const curFundingRateItem =
+    cachedFundingRateHistory[cachedFundingRateHistory.length - 1];
+  const curFundingRate = curFundingRateItem.fundingRate;
+  const fundingRateLongLevel = nodeCache.get("fundingRateLongLevel");
+  const fundingRateShortLevel = nodeCache.get("fundingRateShortLevel");
   return getSignal({
     positionType,
-    preRsi,
-    rsiLongLevel,
-    rsiShortLevel
+    curFundingRate,
+    fundingRateLongLevel,
+    fundingRateShortLevel
   });
 };
 

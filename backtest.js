@@ -1,6 +1,6 @@
 import { getBacktestResult, getBestResult } from "./src/backtest.js";
 import { getStepSize } from "./src/helpers.js";
-import { getCachedKlineData, getCachedRsiData } from "./src/cached-data.js";
+import { getCachedFundingRateHistory } from "./src/cached-data.js";
 
 const bestResult = await getBestResult();
 if (bestResult.fund > 0) {
@@ -8,35 +8,30 @@ if (bestResult.fund > 0) {
   const {
     currentPositionType,
     fund,
-    rsiPeriod,
-    rsiLongLevel,
-    rsiShortLevel,
+    fundingRateLongLevel,
+    fundingRateShortLevel,
     leverage
   } = bestResult;
 
-  const [cachedKlineData, cachedRsiData, stepSize] = await Promise.all([
-    getCachedKlineData(),
-    getCachedRsiData(),
+  const [cachedFundingRateHistory, stepSize] = await Promise.all([
+    getCachedFundingRateHistory(),
     getStepSize()
   ]);
 
   getBacktestResult({
     shouldLogResults: true,
-    cachedKlineData,
-    cachedRsiData,
+    cachedFundingRateHistory,
     stepSize,
-    rsiPeriod,
-    rsiLongLevel,
-    rsiShortLevel,
+    fundingRateLongLevel,
+    fundingRateShortLevel,
     leverage
   });
 
   console.log("==============================================================");
   console.log("currentPositionType", currentPositionType);
   console.log("fund", fund);
-  console.log("rsiPeriod", rsiPeriod);
-  console.log("rsiLongLevel", rsiLongLevel);
-  console.log("rsiShortLevel", rsiShortLevel);
+  console.log("fundingRateLongLevel", fundingRateLongLevel);
+  console.log("fundingRateShortLevel", fundingRateShortLevel);
   console.log("leverage", leverage);
 } else {
   console.log("==============================================================");

@@ -1,14 +1,55 @@
-import { getKlineData } from "./helpers.js";
-import { RSI_PERIOD_SETTING } from "../configs/trade-config.js";
-import { rsi } from "technicalindicators";
+import {
+  IS_KLINE_START_TIME_TO_NOW,
+  KLINE_INTERVAL,
+  KLINE_LIMIT,
+  KLINE_START_TIME,
+  SYMBOL
+} from "../configs/trade-config.js";
+import { klineDataAPI, fundingRateHistoryAPI } from "./api.js";
 
 let cachedKlineData = [];
-let cachedRsiData = new Map();
+let cachedFundingRateHistory = [];
 
-const shouldGetLatestData = (data) => {
-  const noCachedData = data.length === 0;
+const getOriginalKlineData = async () => {
+  const now = Date.now();
+  let originalKlineData = [];
+  let startTime = KLINE_START_TIME;
+  do {
+    const params = {
+      symbol: SYMBOL,
+      interval: KLINE_INTERVAL,
+      limit: KLINE_LIMIT,
+      startTime
+    };
+    const klineData = await klineDataAPI(params);
+    originalKlineData = originalKlineData.concat(klineData);
+    if (klineData.length > 0) {
+      startTime = klineData[klineData.length - 1][6] + 1;
+    }
+    if (!IS_KLINE_START_TIME_TO_NOW) break;
+  } while (startTime && startTime < now);
+  return originalKlineData;
+};
+
+const getKlineData = async () => {
+  const klineData = await getOriginalKlineData();
+  const results = klineData.map((kline) => ({
+    openPrice: Number(kline[1]),
+    highPrice: Number(kline[2]),
+    lowPrice: Number(kline[3]),
+    closePrice: Number(kline[4]),
+    volume: Number(kline[5]),
+    openTime: kline[0],
+    closeTime: kline[6]
+  }));
+  return results;
+};
+
+const shouldGetLatestKlineData = () => {
+  const noCachedData = cachedKlineData.length === 0;
   const isCachedDataExpired =
-    data.length > 0 && Date.now() > data[data.length - 1].closeTime;
+    cachedKlineData.length > 0 &&
+    Date.now() > cachedKlineData[cachedKlineData.length - 1].closeTime;
   if (process.env.NODE_SCRIPT === "backtest") {
     return noCachedData;
   }
@@ -16,38 +57,73 @@ const shouldGetLatestData = (data) => {
 };
 
 export const getCachedKlineData = async () => {
-  if (shouldGetLatestData(cachedKlineData)) {
+  if (shouldGetLatestKlineData()) {
     const klineData = await getKlineData();
     cachedKlineData = klineData;
   }
   return cachedKlineData;
 };
 
-const shouldGetLatestRsiData = () => {
-  const noCachedData = cachedRsiData.size === 0;
-  const isCachedDataExpired = Date.now() > cachedRsiData.get("timestamp");
+const getOriginalFundingRateHistory = async () => {
+  const now = Date.now();
+  let originalFundingRateHistory = [];
+  let startTime = KLINE_START_TIME;
+  do {
+    const params = {
+      symbol: SYMBOL,
+      limit: 1000,
+      startTime
+    };
+    const fundingRateHistory = await fundingRateHistoryAPI(params);
+    originalFundingRateHistory =
+      originalFundingRateHistory.concat(fundingRateHistory);
+    if (fundingRateHistory.length > 0) {
+      startTime =
+        fundingRateHistory[fundingRateHistory.length - 1].fundingTime + 1;
+    }
+    if (!IS_KLINE_START_TIME_TO_NOW) break;
+  } while (startTime && startTime + 60 * 60 * 8 * 1000 < now);
+  return originalFundingRateHistory;
+};
+
+const getFundingRateHistory = async () => {
+  const originalFundingRateHistory = await getOriginalFundingRateHistory();
+  const cachedKlineData = await getCachedKlineData();
+  const fundingRateHistory = originalFundingRateHistory.map(
+    (fundingRateItem) => {
+      const foundPrice = cachedKlineData.find(
+        (kline) =>
+          kline.openTime <= fundingRateItem.fundingTime &&
+          kline.closeTime >= fundingRateItem.fundingTime
+      ).openPrice;
+      return {
+        ...fundingRateItem,
+        fundingRate: Number(fundingRateItem.fundingRate),
+        markPrice: foundPrice
+      };
+    }
+  );
+  return fundingRateHistory;
+};
+
+const shouldGetLatestFundingRateHistory = () => {
+  const noCachedData = cachedFundingRateHistory.length === 0;
+  const isCachedDataExpired =
+    cachedFundingRateHistory.length > 0 &&
+    Date.now() >
+      cachedFundingRateHistory[cachedFundingRateHistory.length - 1]
+        .fundingTime +
+        60 * 60 * 8 * 1000;
   if (process.env.NODE_SCRIPT === "backtest") {
     return noCachedData;
   }
   return noCachedData || isCachedDataExpired;
 };
 
-export const getCachedRsiData = async () => {
-  if (shouldGetLatestRsiData()) {
-    const cachedKlineData = await getCachedKlineData();
-    const values = cachedKlineData.map((kline) => kline.closePrice);
-    const timestamp = cachedKlineData[cachedKlineData.length - 1].closeTime;
-    cachedRsiData.set("timestamp", timestamp);
-    for (
-      let period = RSI_PERIOD_SETTING.min;
-      period <= RSI_PERIOD_SETTING.max;
-      period += RSI_PERIOD_SETTING.step
-    ) {
-      const rsiData = rsi({ period, values });
-      const emptyLength = values.length - rsiData.length;
-      const emptyArray = Array(emptyLength).fill(null);
-      cachedRsiData.set(period, [...emptyArray, ...rsiData]);
-    }
+export const getCachedFundingRateHistory = async () => {
+  if (shouldGetLatestFundingRateHistory()) {
+    const fundingRateHistory = await getFundingRateHistory();
+    cachedFundingRateHistory = fundingRateHistory;
   }
-  return cachedRsiData;
+  return cachedFundingRateHistory;
 };
